@@ -100,32 +100,22 @@ export default class NotionDocumentService implements DocumentService {
   };
 
   getUserInfo = async () => {
-    try {
-      const response = await this.request.get<{
-        id: string;
-        name: string;
-        avatar_url: string;
-        type: string;
-        person?: { email: string };
-        bot?: { owner: { type: string } };
-      }>('users/me');
-      
-      const data = response.data;
-      return {
-        name: data.name || 'Notion Integration',
-        avatar: data.avatar_url || '',
-        homePage: 'https://www.notion.so/',
-        description: data.type === 'bot' ? 'Notion Integration (Bot)' : (data.person?.email || ''),
-      };
-    } catch (error) {
-      // Fallback for cases where integration doesn't have user access
-      return {
-        name: 'Notion',
-        avatar: 'https://www.notion.so/images/favicon.ico',
-        homePage: 'https://www.notion.so/',
-        description: '',
-      };
-    }
+    const response = await this.request.get<{
+      id: string;
+      name: string;
+      avatar_url: string;
+      type: string;
+      person?: { email: string };
+      bot?: { owner: { type: string } };
+    }>('users/me');
+    
+    const data = response.data;
+    return {
+      name: data.name || 'Notion Integration',
+      avatar: data.avatar_url || '',
+      homePage: 'https://www.notion.so/',
+      description: data.type === 'bot' ? 'Notion Integration (Bot)' : (data.person?.email || ''),
+    };
   };
 
   getRepositories = async () => {

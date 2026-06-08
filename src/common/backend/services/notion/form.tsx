@@ -1,5 +1,7 @@
 import React from 'react';
-import { Form, Input } from 'antd';
+import { Form } from '@ant-design/compatible';
+import '@ant-design/compatible/assets/index.less';
+import { Input } from 'antd';
 import { FormattedMessage } from 'react-intl';
 
 export default class NotionForm extends React.Component<any, any> {
@@ -10,8 +12,27 @@ export default class NotionForm extends React.Component<any, any> {
         label={
           <FormattedMessage
             id="backend.services.notion.form.token"
-            defaultMessage="Notion API Token"
+            defaultMessage="Notion Integration Token"
           />
+        }
+        extra={
+          <span>
+            <FormattedMessage
+              id="backend.services.notion.form.tokenTip"
+              defaultMessage="Go to {link} to create a token, then share your pages with the integration."
+              values={{
+                link: (
+                  <a
+                    href="https://www.notion.so/my-integrations"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Notion Integrations
+                  </a>
+                ),
+              }}
+            />
+          </span>
         }
       >
         {getFieldDecorator('token', {
@@ -20,27 +41,14 @@ export default class NotionForm extends React.Component<any, any> {
               required: true,
               message: 'Notion API token is required',
             },
-            {
-              pattern: /^secret_/,
-              message: 'Token must start with "secret_"',
-            },
           ],
         })(
           <Input
-            placeholder="Enter your Notion Integration Token (secret_xxx)"
+            placeholder="secret_xxx"
             type="password"
+            size="large"
           />
         )}
-        <p style={{ marginTop: 8, fontSize: 12, color: '#888' }}>
-          <a
-            href="https://www.notion.so/my-integrations"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Create a Notion Integration →
-          </a>
-          &nbsp; and grant it access to your workspace pages.
-        </p>
       </Form.Item>
     );
   }
