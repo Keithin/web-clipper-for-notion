@@ -73,9 +73,10 @@ const AddImageHostingModal: React.FC<PageProps> = props => {
     title = <FormattedMessage id="preference.imageHosting.edit" defaultMessage="Edit" />;
     initImageHosting = currentImageHosting;
   } else {
+    const firstService = services.filter(o => !o.builtIn)[0];
     title = <FormattedMessage id="preference.imageHosting.add" defaultMessage="Add" />;
     initImageHosting = {
-      type: services.filter(o => !o.builtIn)[0].type,
+      type: firstService ? firstService.type : '',
     };
   }
 
