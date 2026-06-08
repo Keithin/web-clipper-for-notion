@@ -495,6 +495,27 @@ export default class NotionDocumentService implements DocumentService {
         continue;
       }
 
+      // Image: ![alt](url)
+      const imageMatch = trimmed.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
+      if (imageMatch) {
+        const imageUrl = imageMatch[2].trim();
+        if (this.isValidNotionUrl(imageUrl)) {
+          blocks.push({
+            object: 'block',
+            type: 'image',
+            image: {
+              type: 'external',
+              external: { url: imageUrl },
+            },
+          });
+        } else {
+          // Invalid image URL - render as plain text
+          blocks.push(this.createBlock('paragraph', this.parseRichText(trimmed)));
+        }
+        i++;
+        continue;
+      }
+
       // Default: paragraph
       blocks.push(this.createBlock('paragraph', this.parseRichText(trimmed)));
       i++;
@@ -536,7 +557,8 @@ export default class NotionDocumentService implements DocumentService {
 
     const richTexts: any[] = [];
     // Simple inline parsing for bold, italic, inline code, and links
-    const regex = /(\*\*(.+?)\*\*)|(\*(.+?)\*)|(`(.+?)`)|(\[(.+?)\]\((.+?)\))/g;
+    // Negative lookbehind (?<!!) prevents matching image ![alt](url) as a link
+    const regex = /(\*\*(.+?)\*\*)|(\*(.+?)\*)|(`(.+?)`)|(?<!!)\[(.+?)\]\((.+?)\)/g;
     let lastIndex = 0;
     let match;
 
