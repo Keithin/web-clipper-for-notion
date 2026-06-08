@@ -515,7 +515,21 @@ export default class NotionDocumentService implements DocumentService {
   }
 
   /**
+   * Validate URL for Notion API.
+   * Notion only accepts URLs with valid protocols: http://, https://, mailto:, tel:.
+   * Relative URLs, javascript:, data:, and fragment-only URLs are rejected.
+   */
+  private isValidNotionUrl(url: string): boolean {
+    if (!url || url.trim() === '') return false;
+
+    // Must start with a valid protocol scheme
+    const validProtocols = /^(https?|mailto|tel):/i;
+    return validProtocols.test(url.trim());
+  }
+
+  /**
    * Parse inline markdown formatting: bold (**text**), italic (*text*), code (`text`), links
+   * Notion API requires valid URLs (http://, https://, mailto:) - invalid URLs fall back to plain text.
    */
   private parseRichText(text: string): any[] {
     if (!text) return [];
@@ -558,10 +572,19 @@ export default class NotionDocumentService implements DocumentService {
         });
       } else if (match[7] && match[8]) {
         // [link text](url)
-        richTexts.push({
-          type: 'text',
-          text: { content: match[7], link: { url: match[8] } },
-        });
+        const url = match[8];
+        if (this.isValidNotionUrl(url)) {
+          richTexts.push({
+            type: 'text',
+            text: { content: match[7], link: { url } },
+          });
+        } else {
+          // Invalid URL - render as plain text: [text](url)
+          richTexts.push({
+            type: 'text',
+            text: { content: match[0] },
+          });
+        }
       }
 
       lastIndex = match.index + match[0].length;
