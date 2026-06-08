@@ -130,97 +130,46 @@ export default class NotionDocumentService implements DocumentService {
   };
 
   getRepositories = async () => {
-    // Search for pages and databases accessible to the integration
+    // Single search call (no filter = returns both pages and databases)
+    // Limited to 50 items (most recent) for speed — more than enough for target selection
+    const response = await this.request.post<{
+      results: any[];
+      next_cursor: string | null;
+      has_more: boolean;
+    }>('search', {
+      sort: {
+        direction: 'descending',
+        timestamp: 'last_edited_time',
+      },
+      page_size: 50,
+    });
+
     const results: (NotionPage | NotionDatabase)[] = [];
-    let startCursor: string | undefined = undefined;
-    let hasMore = true;
 
-    while (hasMore) {
-      const searchBody: any = {
-        filter: {
-          value: 'page',
-          property: 'object',
-        },
-        sort: {
-          direction: 'descending',
-          timestamp: 'last_edited_time',
-        },
-        page_size: 100,
-      };
-
-      if (startCursor) {
-        searchBody.start_cursor = startCursor;
-      }
-
-      const response = await this.request.post<{
-        results: any[];
-        next_cursor: string | null;
-        has_more: boolean;
-      }>('search', searchBody);
-
-      for (const item of response.data.results) {
-        if (item.object === 'page' && item.archived === false) {
-          const title = this.extractPageTitle(item);
-          if (title) {
-            results.push({
-              id: item.id,
-              name: title,
-              groupId: item.parent?.workspace || '',
-              groupName: 'Workspace',
-              object: 'page',
-            });
-          }
+    for (const item of response.data.results) {
+      if (item.archived === false && item.object === 'page') {
+        const title = this.extractPageTitle(item);
+        if (title) {
+          results.push({
+            id: item.id,
+            name: title,
+            groupId: 'pages',
+            groupName: '📄 Pages',
+            object: 'page',
+          });
+        }
+      } else if (item.archived === false && item.object === 'database') {
+        const title = this.extractDatabaseTitle(item);
+        if (title) {
+          results.push({
+            id: item.id,
+            name: title,
+            groupId: 'databases',
+            groupName: '🗄️ Databases',
+            object: 'database',
+          });
         }
       }
-
-      startCursor = response.data.next_cursor || undefined;
-      hasMore = response.data.has_more;
-    }
-
-    // Also search for databases (Notion API uses 'data_source' in filter, not 'database')
-    startCursor = undefined;
-    hasMore = true;
-
-    while (hasMore) {
-      const dbSearchBody: any = {
-        filter: {
-          value: 'data_source',
-          property: 'object',
-        },
-        sort: {
-          direction: 'descending',
-          timestamp: 'last_edited_time',
-        },
-        page_size: 100,
-      };
-
-      if (startCursor) {
-        dbSearchBody.start_cursor = startCursor;
-      }
-
-      const dbResponse = await this.request.post<{
-        results: any[];
-        next_cursor: string | null;
-        has_more: boolean;
-      }>('search', dbSearchBody);
-
-      for (const item of dbResponse.data.results) {
-        if (item.object === 'database' && item.archived === false) {
-          const title = this.extractDatabaseTitle(item);
-          if (title) {
-            results.push({
-              id: item.id,
-              name: title,
-              groupId: item.parent?.workspace || '',
-              groupName: 'Workspace',
-              object: 'database',
-            });
-          }
-        }
-      }
-
-      startCursor = dbResponse.data.next_cursor || undefined;
-      hasMore = dbResponse.data.has_more;
     }
 
     this.repositories = results;
