@@ -79,6 +79,17 @@ export default class NotionDocumentService implements DocumentService {
             );
           }
 
+          if (status === 400) {
+            return Promise.reject(
+              new HttpError({
+                message:
+                  body?.message ||
+                  'Bad request (400). The API request format is invalid.',
+                status: 400,
+              })
+            );
+          }
+
           if (status === 404) {
             return Promise.reject(
               new HttpError({
@@ -166,14 +177,14 @@ export default class NotionDocumentService implements DocumentService {
       hasMore = response.data.has_more;
     }
 
-    // Also search for databases
+    // Also search for databases (Notion API uses 'data_source' in filter, not 'database')
     startCursor = undefined;
     hasMore = true;
 
     while (hasMore) {
       const dbSearchBody: any = {
         filter: {
-          value: 'database',
+          value: 'data_source',
           property: 'object',
         },
         sort: {
