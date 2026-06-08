@@ -98,6 +98,6 @@
   "tool.title": "笔记标题",
   "tool.title.required": "请输入笔记标题",
   "tool.toolExtensions": "工具扩展",
-  "backend.services.notion.form.token": "Notion Integration Token",
+  "backend.services.notion.form.token": "Notion 集成令牌",
   "backend.services.notion.form.tokenTip": "前往 {link} 创建一个 Integration Token，然后与你的 Notion 页面分享该集成。"
 }
