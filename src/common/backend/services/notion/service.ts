@@ -1,51 +1,94 @@
 import localeService from '@/common/locales';
-import { ICookieService } from '@/service/common/cookie';
-import { IWebRequestService } from '@/service/common/webRequest';
 import { generateUuid } from '@web-clipper/shared/lib/uuid';
 import axios, { AxiosInstance } from 'axios';
-import Container from 'typedi';
 import { CreateDocumentRequest, DocumentService } from '../../index';
-import { CompleteStatus, UnauthorizedError } from './../interface';
-import { NotionRepository, NotionUserContent, RecentPages } from './types';
+import { CompleteStatus, HttpError } from './../interface';
+import { NotionPage, NotionDatabase } from './types';
 
-const PAGE = 'page';
-const COLLECTION_VIEW_PAGE = 'collection_view_page';
-const origin = 'https://www.notion.so/';
+const API_BASE = 'https://api.notion.com';
+const API_VERSION = '2022-06-28';
 
+/**
+ * Notion Document Service - uses official Notion API v1 with Integration Token auth.
+ * 
+ * Authentication:
+ * 1. User creates a Notion Integration at https://www.notion.so/my-integrations
+ * 2. User grants the Integration access to their workspace pages
+ * 3. User provides the Integration's Internal Integration Token (secret_xxx)
+ * 4. Token is used as Bearer token for all API calls
+ */
 export default class NotionDocumentService implements DocumentService {
   private request: AxiosInstance;
-  private repositories: NotionRepository[];
-  private userContent?: NotionUserContent;
-  private webRequestService: IWebRequestService;
-  private cookieService: ICookieService;
+  private repositories: (NotionPage | NotionDatabase)[];
+  private token: string;
 
-  constructor() {
-    const request = axios.create({
-      baseURL: origin,
-      timeout: 10000,
-      transformResponse: [
-        (data): any => {
-          return JSON.parse(data);
-        },
-      ],
-      withCredentials: true,
-    });
-    this.request = request;
+  constructor(info: { token: string }) {
+    this.token = info?.token || '';
     this.repositories = [];
-    this.webRequestService = Container.get(IWebRequestService);
-    this.cookieService = Container.get(ICookieService);
+
+    this.request = axios.create({
+      baseURL: `${API_BASE}/v1/`,
+      timeout: 30000,
+      headers: {
+        'Authorization': `Bearer ${this.token}`,
+        'Content-Type': 'application/json',
+        'Notion-Version': API_VERSION,
+      },
+    });
+
     this.request.interceptors.response.use(
       (r) => r,
       (error) => {
-        if (error.response && error.response.status === 401) {
-          return Promise.reject(
-            new UnauthorizedError(
-              localeService.format({
-                id: 'backend.services.notion.unauthorizedErrorMessage',
-                defaultMessage: 'Unauthorized! Please Login Notion Web.',
+        if (error.response) {
+          const status = error.response.status;
+          const body = error.response.data;
+
+          if (status === 401) {
+            return Promise.reject(
+              new HttpError({
+                message:
+                  body?.message ||
+                  localeService.format({
+                    id: 'backend.services.notion.unauthorizedErrorMessage',
+                    defaultMessage:
+                      'Invalid Notion API token. Make sure your Integration Token starts with "secret_" and has been granted access to your workspace.',
+                  }),
+                status: 401,
               })
-            )
-          );
+            );
+          }
+
+          if (status === 403) {
+            return Promise.reject(
+              new HttpError({
+                message:
+                  body?.message ||
+                  'Access denied. Please make sure your Notion Integration has been shared with the target page or database.',
+                status: 403,
+              })
+            );
+          }
+
+          if (status === 429) {
+            return Promise.reject(
+              new HttpError({
+                message:
+                  'Notion API rate limit exceeded. Please wait a moment and try again.',
+                status: 429,
+              })
+            );
+          }
+
+          if (status === 404) {
+            return Promise.reject(
+              new HttpError({
+                message:
+                  body?.message ||
+                  'Resource not found (404). The page or database may have been deleted.',
+                status: 404,
+              })
+            );
+          }
         }
         return Promise.reject(error);
       }
@@ -57,391 +100,480 @@ export default class NotionDocumentService implements DocumentService {
   };
 
   getUserInfo = async () => {
-    if (!this.userContent) {
-      this.userContent = await this.getUserContent();
+    try {
+      const response = await this.request.get<{
+        id: string;
+        name: string;
+        avatar_url: string;
+        type: string;
+        person?: { email: string };
+        bot?: { owner: { type: string } };
+      }>('users/me');
+      
+      const data = response.data;
+      return {
+        name: data.name || 'Notion Integration',
+        avatar: data.avatar_url || '',
+        homePage: 'https://www.notion.so/',
+        description: data.type === 'bot' ? 'Notion Integration (Bot)' : (data.person?.email || ''),
+      };
+    } catch (error) {
+      // Fallback for cases where integration doesn't have user access
+      return {
+        name: 'Notion',
+        avatar: 'https://www.notion.so/images/favicon.ico',
+        homePage: 'https://www.notion.so/',
+        description: '',
+      };
     }
-    const user = this.userContent.recordMap.notion_user;
-    const userInfo = Object.values(user)[0];
-    const { email, profile_photo, name } = userInfo.value;
-    return {
-      name,
-      avatar: profile_photo,
-      homePage: 'https://www.notion.so/',
-      description: email,
-    };
   };
 
   getRepositories = async () => {
-    if (!this.userContent) {
-      this.userContent = await this.getUserContent();
+    // Search for pages and databases accessible to the integration
+    const results: (NotionPage | NotionDatabase)[] = [];
+    let startCursor: string | undefined = undefined;
+    let hasMore = true;
+
+    while (hasMore) {
+      const searchBody: any = {
+        filter: {
+          value: 'page',
+          property: 'object',
+        },
+        sort: {
+          direction: 'descending',
+          timestamp: 'last_edited_time',
+        },
+        page_size: 100,
+      };
+
+      if (startCursor) {
+        searchBody.start_cursor = startCursor;
+      }
+
+      const response = await this.request.post<{
+        results: any[];
+        next_cursor: string | null;
+        has_more: boolean;
+      }>('search', searchBody);
+
+      for (const item of response.data.results) {
+        if (item.object === 'page' && item.archived === false) {
+          const title = this.extractPageTitle(item);
+          if (title) {
+            results.push({
+              id: item.id,
+              name: title,
+              groupId: item.parent?.workspace || '',
+              groupName: 'Workspace',
+              object: 'page',
+            });
+          }
+        }
+      }
+
+      startCursor = response.data.next_cursor || undefined;
+      hasMore = response.data.has_more;
     }
 
-    const userId = Object.keys(this.userContent.recordMap.notion_user)[0] as string;
-    const spaces = (await this.getSpaces(userId)) as any;
-    const result: Array<NotionRepository[]> = await Promise.all(
-      Object.keys(spaces).map(async (p) => {
-        const space = spaces[p];
-        const recentPages = await this.getRecentPageVisits(space.spaceId, userId);
-        const spaceName = await this.getSpaceName(space.spaceId);
-        return this.loadSpace(space.spaceId, spaceName, recentPages);
-      })
-    );
+    // Also search for databases
+    startCursor = undefined;
+    hasMore = true;
 
-    this.repositories = result.flat() as NotionRepository[];
+    while (hasMore) {
+      const dbSearchBody: any = {
+        filter: {
+          value: 'database',
+          property: 'object',
+        },
+        sort: {
+          direction: 'descending',
+          timestamp: 'last_edited_time',
+        },
+        page_size: 100,
+      };
+
+      if (startCursor) {
+        dbSearchBody.start_cursor = startCursor;
+      }
+
+      const dbResponse = await this.request.post<{
+        results: any[];
+        next_cursor: string | null;
+        has_more: boolean;
+      }>('search', dbSearchBody);
+
+      for (const item of dbResponse.data.results) {
+        if (item.object === 'database' && item.archived === false) {
+          const title = this.extractDatabaseTitle(item);
+          if (title) {
+            results.push({
+              id: item.id,
+              name: title,
+              groupId: item.parent?.workspace || '',
+              groupName: 'Workspace',
+              object: 'database',
+            });
+          }
+        }
+      }
+
+      startCursor = dbResponse.data.next_cursor || undefined;
+      hasMore = dbResponse.data.has_more;
+    }
+
+    this.repositories = results;
     return this.repositories;
   };
-
-  getSpaces = async (userId: string) => {
-    const response = await this.requestWithCookie.post<{
-      users: {
-        [id: string]: {
-          user_root: {
-            [id: string]: {
-              value: {
-                space_view_pointers: [
-                  {
-                    id: string;
-                    table: string;
-                    spaceId: string;
-                  }
-                ]
-              }
-            };
-          }
-          space: any;
-        };
-      };
-    }>('/api/v3/getSpacesInitial');
-    return response.data.users[userId].user_root[userId].value.space_view_pointers;
-  };
-
-  getSpaceName = async (spaceId: string) => {
-    const response = await this.requestWithCookie.post<{
-      results: [
-        {
-          name: string;
-        }
-      ]
-    }>('api/v3/getPublicSpaceData', {
-      spaceIds: [spaceId],
-      type: 'space-ids'
-    });
-    return response.data.results[0].name;
-  }
 
   createDocument = async ({
     repositoryId,
     title,
     content,
   }: CreateDocumentRequest): Promise<CompleteStatus> => {
-    let fileName = `${title}.md`;
-
     const repository = this.repositories.find((o) => o.id === repositoryId);
     if (!repository) {
-      throw new Error('Illegal repository');
+      // Try to resolve from API directly
+      throw new Error(
+        'Target not found. Please go to Preferences → Account and re-select a page or database.'
+      );
     }
 
-    const documentId = await this.createEmptyFile(repository, content);
-    const fileUrl = await this.getFileUrl(encodeURI(fileName));
-    await axios.put(fileUrl.signedPutUrl, `${content}`, {
-      headers: {
-        'Content-Type': 'text/markdown',
-      },
-    });
-    if (!this.userContent) {
-      this.userContent = await this.getUserContent();
-    }
-    const spaceId = await this.getSpaceId();
-    await this.requestWithCookie.post('api/v3/enqueueTask', {
-      task: {
-        eventName: 'importFile',
-        request: {
-          fileURL: fileUrl.url,
-          fileName,
-          importType: 'ReplaceBlock',
-          block: {
-            id: documentId,
-            spaceId: spaceId,
-          },
-          spaceId: spaceId,
-          signedToken: fileUrl.signedToken,
+    // Convert markdown to Notion blocks
+    const children = this.markdownToNotionBlocks(content);
+    const MAX_BLOCKS_PER_REQUEST = 100;
+    const initialBlocks = children.slice(0, MAX_BLOCKS_PER_REQUEST);
+
+    // Build parent: databases use database_id, pages use page_id
+    const parent: any =
+      repository.object === 'database'
+        ? { database_id: repository.id }
+        : { page_id: repository.id };
+
+    const pageBody: any = {
+      parent,
+      properties: {
+        title: {
+          title: [
+            {
+              type: 'text',
+              text: {
+                content: title || 'Untitled',
+              },
+            },
+          ],
         },
       },
-    });
+      children: initialBlocks.length > 0 ? initialBlocks : undefined,
+    };
+
+    const response = await this.request.post<{ id: string; url: string }>('pages', pageBody);
 
     return {
-      href: `https://www.notion.so/${repository.groupId}/${documentId.replace(/-/g, '')}`,
+      href: response.data.url,
     };
-  };
-
-  getSpaceId = async () => {
-    if (!this.userContent) {
-      this.userContent = await this.getUserContent();
-    }
-
-    const userId = Object.keys(this.userContent.recordMap.notion_user)[0] as string;
-    const spaces = (await this.getSpaces(userId)) as any;
-    return spaces[0].spaceId;
-  };
-
-  createEmptyFile = async (repository: NotionRepository, title: string) => {
-    if (!this.userContent) {
-      this.userContent = await this.getUserContent();
-    }
-    const spaceId = await this.getSpaceId();
-    const documentId = generateUuid();
-    const requestId = generateUuid();
-    const inner_requestId = generateUuid();
-    const parentId = repository.id;
-    const userId = Object.values(this.userContent.recordMap.notion_user)[0].value.id;
-    const time = new Date().getDate();
-    let operations;
-    if (repository.pageType === PAGE) {
-      operations = [
-        {
-          id: documentId,
-          table: 'block',
-          path: [],
-          command: 'set',
-          args: {
-            type: 'page',
-            id: documentId,
-            space_id: spaceId,
-            version: 1,
-          },
-        },
-        {
-          id: documentId,
-          table: 'block',
-          path: [],
-          command: 'update',
-          args: {
-            parent_id: parentId,
-            parent_table: 'block',
-            alive: true,
-            space_id: spaceId,
-          },
-        },
-        {
-          table: 'block',
-          id: parentId,
-          path: ['content'],
-          command: 'listAfter',
-          args: {
-            id: documentId,
-            space_id: spaceId,
-          },
-        },
-        {
-          id: documentId,
-          table: 'block',
-          path: [],
-          command: 'update',
-          args: {
-            created_by: userId,
-            created_time: time,
-            last_edited_time: time,
-            last_edited_by: userId,
-            space_id: spaceId,
-          },
-        },
-        {
-          id: parentId,
-          table: 'block',
-          path: [],
-          command: 'update',
-          args: {
-            last_edited_time: time,
-            space_id: spaceId,
-          },
-        },
-        {
-          id: documentId,
-          table: 'block',
-          path: ['properties', 'title'],
-          command: 'set',
-          args: [[title]],
-        },
-        {
-          id: documentId,
-          table: 'block',
-          path: [],
-          command: 'update',
-          args: {
-            last_edited_time: time,
-            space_id: spaceId,
-          },
-        },
-      ];
-    } else if (repository.pageType === COLLECTION_VIEW_PAGE) {
-      operations = [
-        {
-          id: documentId,
-          table: 'block',
-          path: [],
-          command: 'set',
-          args: {
-            type: 'page',
-            id: documentId,
-            space_id: spaceId,
-            version: 1,
-          },
-        },
-        {
-          id: documentId,
-          table: 'block',
-          path: [],
-          command: 'update',
-          args: {
-            parent_id: parentId,
-            parent_table: 'collection',
-            space_id: spaceId,
-            alive: true,
-          },
-        },
-      ];
-    }
-
-    await this.requestWithCookie.post('api/v3/saveTransactionsFanout', {
-      requestId: requestId,
-      transactions: [
-        {
-          id: inner_requestId,
-          operations: operations,
-          spaceId: spaceId,
-        }
-      ]
-    });
-    return documentId;
-  };
-
-  getFileUrl = async (fileName: string) => {
-    const result = await this.requestWithCookie.post<{
-      url: string;
-      signedPutUrl: string;
-      signedToken: string;
-    }>('api/v3/getUploadFileUrl', {
-      bucket: 'temporary',
-      name: fileName,
-      contentType: 'text/markdown',
-    });
-    return result.data;
-  };
-
-  private async loadSpace(
-    spaceId: string,
-    spaceName: string,
-    recentPages: RecentPages
-  ): Promise<NotionRepository[]> {
-    const response = await this.requestWithCookie.post<{
-      pages: string[];
-      recordMap: {
-        block: {
-          [id: string]: {
-            value: {
-              collection_id: string;
-              id: string;
-              type: string;
-              space_id: string;
-              properties: {
-                title: string[];
-              };
-            };
-          };
-        };
-      };
-    }>('api/v3/getUserSharedPagesInSpace', {
-      includeDeleted: false,
-      includeTeamSharedPages: false,
-      spaceId,
-    });
-
-    const pages: string[] = response.data.pages as string[];
-
-    return pages
-      .map((pageId): NotionRepository | null => {
-        const value = response.data.recordMap.block[pageId]!.value;
-        if (value.type === PAGE && !!value.properties && !!value.properties.title) {
-          return {
-            id: value.id,
-            name: value.properties.title.toString(),
-            groupId: spaceId,
-            groupName: spaceName,
-            pageType: PAGE,
-          };
-        }
-        const collections = recentPages.recordMap.collection;
-        if (
-          value.type === COLLECTION_VIEW_PAGE &&
-          !!value.collection_id &&
-          !!collections &&
-          !!collections[value.collection_id] &&
-          !!collections[value.collection_id].value &&
-          !!collections[value.collection_id].value.name
-        ) {
-          return {
-            id: collections[value.collection_id].value.id,
-            name: collections[value.collection_id].value.name.toString(),
-            groupId: spaceId,
-            groupName: spaceName,
-            pageType: COLLECTION_VIEW_PAGE,
-          };
-        }
-        return null;
-      })
-      .filter((p): p is NotionRepository => !!p);
-  }
-
-  private async getRecentPageVisits(spaceId: string, userId: string): Promise<RecentPages> {
-    const res = await this.requestWithCookie.post<RecentPages>('api/v3/getRecentPageVisits', {
-      spaceId,
-      userId,
-    });
-    return res.data;
-  }
-
-  private getUserContent = async () => {
-    const response = await this.requestWithCookie.post<NotionUserContent>('api/v3/loadUserContent');
-    return response.data;
   };
 
   /**
-   * Modify the cookie when request
+   * Extract page title from Notion API response
    */
-  private get requestWithCookie() {
-    const post = async <T>(url: string, data?: any) => {
-      const cookies = await this.cookieService.getAll({
-        url: origin,
-      });
-      const cookieString = cookies.map((o) => `${o.name}=${o.value}`).join(';');
-      const header = await this.webRequestService.startChangeHeader({
-        urls: [`${origin}*`],
-        requestHeaders: [
-          {
-            name: 'cookie',
-            value: cookieString,
-          },
-          {
-            name: `Content-Type`,
-            value: 'application/json',
-          },
-        ],
-      });
-      try {
-        const result = await this.request.post<T>(
-          await this.webRequestService.changeUrl(url, header),
-          data,
-          {}
-        );
-        await this.webRequestService.end(header);
-        return result;
-      } catch (error) {
-        await this.webRequestService.end(header);
-        throw error;
+  private extractPageTitle(page: any): string | null {
+    try {
+      if (page.properties?.title?.title?.[0]?.plain_text) {
+        return page.properties.title.title[0].plain_text;
       }
+      if (page.properties?.title?.title?.[0]?.text?.content) {
+        return page.properties.title.title[0].text.content;
+      }
+    } catch (e) {
+      // ignore
+    }
+    return null;
+  }
+
+  /**
+   * Extract database title from Notion API response
+   */
+  private extractDatabaseTitle(database: any): string | null {
+    try {
+      if (database.title?.[0]?.plain_text) {
+        return database.title[0].plain_text;
+      }
+      if (database.title?.[0]?.text?.content) {
+        return database.title[0].text.content;
+      }
+    } catch (e) {
+      // ignore
+    }
+    return null;
+  }
+
+  /**
+   * Convert markdown text to Notion block objects
+   * Supports: headings, paragraphs, code blocks, bullet lists, numbered lists, blockquotes, toggles
+   */
+  private markdownToNotionBlocks(markdown: string): any[] {
+    const blocks: any[] = [];
+    const lines = markdown.split('\n');
+    let i = 0;
+
+    while (i < lines.length) {
+      const line = lines[i];
+      const trimmed = line.trim();
+
+      // Skip empty lines (but add a spacer paragraph for visual separation)
+      if (!trimmed) {
+        if (i > 0 && i < lines.length - 1) {
+          // Only add spacer if it's between content
+          const prevNonEmpty = lines.slice(0, i).reverse().find(l => l.trim());
+          const nextNonEmpty = lines.slice(i + 1).find(l => l.trim());
+          if (prevNonEmpty && nextNonEmpty) {
+            blocks.push({
+              object: 'block',
+              type: 'paragraph',
+              paragraph: {
+                rich_text: [],
+              },
+            });
+          }
+        }
+        i++;
+        continue;
+      }
+
+      // Heading 1: # text
+      if (trimmed.startsWith('# ') && !trimmed.startsWith('## ')) {
+        blocks.push(this.createBlock('heading_1', this.parseRichText(trimmed.slice(2))));
+        i++;
+        continue;
+      }
+
+      // Heading 2: ## text
+      if (trimmed.startsWith('## ') && !trimmed.startsWith('### ')) {
+        blocks.push(this.createBlock('heading_2', this.parseRichText(trimmed.slice(3))));
+        i++;
+        continue;
+      }
+
+      // Heading 3: ### text
+      if (trimmed.startsWith('### ')) {
+        blocks.push(this.createBlock('heading_3', this.parseRichText(trimmed.slice(4))));
+        i++;
+        continue;
+      }
+
+      // Blockquote: > text
+      if (trimmed.startsWith('> ')) {
+        const quoteLines: string[] = [trimmed.slice(2)];
+        i++;
+        while (i < lines.length && lines[i].trim().startsWith('> ')) {
+          quoteLines.push(lines[i].trim().slice(2));
+          i++;
+        }
+        blocks.push({
+          object: 'block',
+          type: 'quote',
+          quote: {
+            rich_text: this.parseRichText(quoteLines.join('\n')),
+          },
+        });
+        continue;
+      }
+
+      // Code block: ``` ... ```
+      if (trimmed.startsWith('```')) {
+        const lang = trimmed.slice(3).trim();
+        const codeLines: string[] = [];
+        i++;
+        while (i < lines.length && !lines[i].trim().startsWith('```')) {
+          codeLines.push(lines[i]);
+          i++;
+        }
+        i++; // skip closing ```
+        blocks.push({
+          object: 'block',
+          type: 'code',
+          code: {
+            rich_text: [
+              {
+                type: 'text',
+                text: { content: codeLines.join('\n') },
+              },
+            ],
+            language: lang || 'plain text',
+          },
+        });
+        continue;
+      }
+
+      // Bullet list: - item or * item
+      if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+        const listItems: string[] = [];
+        while (i < lines.length) {
+          const t = lines[i].trim();
+          if (t.startsWith('- ') || t.startsWith('* ')) {
+            listItems.push(t.slice(2));
+            i++;
+          } else if (!t) {
+            i++;
+            break;
+          } else {
+            break;
+          }
+        }
+        for (const item of listItems) {
+          blocks.push({
+            object: 'block',
+            type: 'bulleted_list_item',
+            bulleted_list_item: {
+              rich_text: this.parseRichText(item),
+            },
+          });
+        }
+        continue;
+      }
+
+      // Numbered list: 1. item
+      if (/^\d+\.\s/.test(trimmed)) {
+        const listItems: string[] = [];
+        while (i < lines.length) {
+          const t = lines[i].trim();
+          if (/^\d+\.\s/.test(t)) {
+            listItems.push(t.replace(/^\d+\.\s/, ''));
+            i++;
+          } else if (!t) {
+            i++;
+            break;
+          } else {
+            break;
+          }
+        }
+        for (const item of listItems) {
+          blocks.push({
+            object: 'block',
+            type: 'numbered_list_item',
+            numbered_list_item: {
+              rich_text: this.parseRichText(item),
+            },
+          });
+        }
+        continue;
+      }
+
+      // Toggle: <details>/summary equivalent - use ## Toggle prefix
+      if (trimmed.startsWith('## Toggle ')) {
+        const toggleTitle = trimmed.slice(10);
+        const toggleContent: any[] = [];
+        i++;
+        while (i < lines.length && !lines[i].trim().startsWith('## Toggle') && !lines[i].trim().startsWith('---')) {
+          const t = lines[i].trim();
+          if (t) {
+            toggleContent.push(this.createBlock('paragraph', this.parseRichText(t)));
+          }
+          i++;
+        }
+        blocks.push({
+          object: 'block',
+          type: 'toggle',
+          toggle: {
+            rich_text: this.parseRichText(toggleTitle),
+            children: toggleContent.length > 0 ? toggleContent : undefined,
+          },
+        });
+        continue;
+      }
+
+      // Divider: --- or ***
+      if (trimmed === '---' || trimmed === '***') {
+        blocks.push({
+          object: 'block',
+          type: 'divider',
+          divider: {},
+        });
+        i++;
+        continue;
+      }
+
+      // Default: paragraph
+      blocks.push(this.createBlock('paragraph', this.parseRichText(trimmed)));
+      i++;
+    }
+
+    return blocks;
+  }
+
+  private createBlock(type: string, richText: any[]): any {
+    const block: any = {
+      object: 'block',
+      type: type,
     };
-    return {
-      post,
+    block[type] = {
+      rich_text: richText.length > 0 ? richText : [{ type: 'text', text: { content: ' ' } }],
     };
+    return block;
+  }
+
+  /**
+   * Parse inline markdown formatting: bold (**text**), italic (*text*), code (`text`), links
+   */
+  private parseRichText(text: string): any[] {
+    if (!text) return [];
+
+    const richTexts: any[] = [];
+    // Simple inline parsing for bold, italic, inline code, and links
+    const regex = /(\*\*(.+?)\*\*)|(\*(.+?)\*)|(`(.+?)`)|(\[(.+?)\]\((.+?)\))/g;
+    let lastIndex = 0;
+    let match;
+
+    while ((match = regex.exec(text)) !== null) {
+      // Add plain text before this match
+      if (match.index > lastIndex) {
+        richTexts.push({
+          type: 'text',
+          text: { content: text.slice(lastIndex, match.index) },
+        });
+      }
+
+      if (match[2]) {
+        // **bold**
+        richTexts.push({
+          type: 'text',
+          text: { content: match[2] },
+          annotations: { bold: true },
+        });
+      } else if (match[4]) {
+        // *italic*
+        richTexts.push({
+          type: 'text',
+          text: { content: match[4] },
+          annotations: { italic: true },
+        });
+      } else if (match[6]) {
+        // `inline code`
+        richTexts.push({
+          type: 'text',
+          text: { content: match[6] },
+          annotations: { code: true },
+        });
+      } else if (match[7] && match[8]) {
+        // [link text](url)
+        richTexts.push({
+          type: 'text',
+          text: { content: match[7], link: { url: match[8] } },
+        });
+      }
+
+      lastIndex = match.index + match[0].length;
+    }
+
+    // Remaining plain text
+    if (lastIndex < text.length) {
+      richTexts.push({
+        type: 'text',
+        text: { content: text.slice(lastIndex) },
+      });
+    }
+
+    return richTexts.length > 0 ? richTexts : [{ type: 'text', text: { content: ' ' } }];
   }
 }

@@ -30,7 +30,7 @@ type PageProps = PageOwnProps & FormComponentProps;
 const ModalTitle = () => (
   <div className={styles.modalTitle}>
     <FormattedMessage id="preference.accountList.addAccount" defaultMessage="Add Account" />
-    <a href={'https://www.yuque.com/yuqueclipper/help_cn/bind_account'} target="_blank">
+    <a href={'https://www.notion.so/help'} target="_blank">
       <QuestionCircleOutlined />
     </a>
   </div>

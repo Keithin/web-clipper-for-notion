@@ -1,5 +1,6 @@
 import { ServiceMeta } from '@/common/backend';
 import Service from './service';
+import Form from './form';
 
 export default (): ServiceMeta => {
   return {
@@ -8,9 +9,6 @@ export default (): ServiceMeta => {
     type: 'notion',
     homePage: 'https://www.notion.so/',
     service: Service,
-    permission: {
-      origins: ['https://www.notion.so/*'],
-      permissions: ['cookies'],
-    },
+    form: Form,
   };
 };

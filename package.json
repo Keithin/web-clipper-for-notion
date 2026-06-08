@@ -1,7 +1,7 @@
 {
-  "name": "web-clipper",
-  "version": "1.42.0",
-  "description": "Universal open source web clipper.",
+  "name": "notion-web-clipper",
+  "version": "1.0.0",
+  "description": "Notion-only web clipper browser extension. Clip any web page to Notion with one click.",
   "bin": {
     "web-clipper": "bin/index.js"
   },
