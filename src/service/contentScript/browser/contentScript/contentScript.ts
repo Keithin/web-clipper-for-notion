@@ -96,6 +96,30 @@ function resolveImageUrl(url: string): string | null {
     return null;
   }
 }
+
+// Strip javascript: and empty anchor links — these are UI navigation elements,
+// never actual content. Converts them to plain text instead of markdown links.
+// e.g. <a href="javascript:void(0)">关注</a> → 关注 (not [关注](javascript:void(0)))
+function stripLink(targetUrl: string): boolean {
+  if (!targetUrl || targetUrl === '#') return true;
+  if (/^javascript\s*:/i.test(targetUrl)) return true;
+  return false;
+}
+
+turndownService.addRule('stripJunkLinks', {
+  filter: ['a'],
+  replacement: function (content: string, node: Node) {
+    const el = node as HTMLElement;
+    if (!(el instanceof HTMLElement)) return content || '';
+    const href = el.getAttribute('href') || '';
+    // If it's a junk link, return just the text content without markdown link syntax
+    if (stripLink(href)) return content || '';
+    // Keep valid links unchanged (preserve title attribute if present)
+    const title = el.getAttribute('title');
+    if (title) return '[' + content + '](' + href + ' "' + title + '")';
+    return '[' + content + '](' + href + ')';
+  },
+});
 class ContentScriptService implements IContentScriptService {
   constructor(@Inject(IExtensionContainer) private extensionContainer: IExtensionContainer) {}
 

@@ -191,7 +191,32 @@ const Page = React.memo<PageProps>(
 
     return (
       <ToolContainer onClickCloseButton={Container.get(IContentScriptService).hide}>
-        {header}
+        {accounts.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px 20px', color: '#999' }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>🔗</div>
+            <h3>
+              <FormattedMessage
+                id="preference.account.add"
+                defaultMessage="Bind Account"
+              />
+            </h3>
+            <p style={{ color: '#999', fontSize: 13, marginTop: 8 }}>
+              <FormattedMessage
+                id="preference.bind.message"
+                defaultMessage="You need to bind an account before you can use it."
+              />
+            </p>
+            <Button
+              type="primary"
+              style={{ marginTop: 16 }}
+              onClick={() => push('/preference/account')}
+            >
+              <FormattedMessage id="preference.account.add" defaultMessage="Bind Account" />
+            </Button>
+          </div>
+        ) : (
+          <React.Fragment>
+            {header}
         <ToolExtensions
           extensions={toolExtensions}
           onClick={extension =>
@@ -243,6 +268,9 @@ const Page = React.memo<PageProps>(
             {dropdown}
           </div>
         </Section>
+        </React.Fragment>
+      )}
+
       </ToolContainer>
     );
   },
