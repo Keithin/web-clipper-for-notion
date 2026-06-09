@@ -183,7 +183,6 @@ export default class NotionDocumentService implements DocumentService {
   }: CreateDocumentRequest): Promise<CompleteStatus> => {
     const repository = this.repositories.find((o) => o.id === repositoryId);
     if (!repository) {
-      // Try to resolve from API directly
       throw new Error(
         'Target not found. Please go to Preferences → Account and re-select a page or database.'
       );
@@ -192,7 +191,6 @@ export default class NotionDocumentService implements DocumentService {
     // Convert markdown to Notion blocks
     const children = this.markdownToNotionBlocks(content);
     const MAX_BLOCKS_PER_REQUEST = 100;
-    const initialBlocks = children.slice(0, MAX_BLOCKS_PER_REQUEST);
 
     // Build parent: databases use database_id, pages use page_id
     const parent: any =
@@ -214,10 +212,23 @@ export default class NotionDocumentService implements DocumentService {
           ],
         },
       },
-      children: initialBlocks.length > 0 ? initialBlocks : undefined,
     };
 
+    // Notion API: creating a page under a page supports 'children' inline,
+    // but creating under a database does NOT — children are silently ignored.
+    // So we always create the page first, then append blocks afterward.
+    // Additionally, Notion limits each append to 100 blocks, so we batch.
     const response = await this.request.post<{ id: string; url: string }>('pages', pageBody);
+    const pageId = response.data.id;
+
+    if (children.length > 0) {
+      for (let i = 0; i < children.length; i += MAX_BLOCKS_PER_REQUEST) {
+        const batch = children.slice(i, i + MAX_BLOCKS_PER_REQUEST);
+        await this.request.patch(`blocks/${pageId}/children`, {
+          children: batch,
+        });
+      }
+    }
 
     return {
       href: response.data.url,
