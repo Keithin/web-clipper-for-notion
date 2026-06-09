@@ -13,17 +13,17 @@ const IconFont: React.FC<any> = (props) => {
   return (
     <Observer>
       {() => {
+        // IMPORTANT: Check remoteIconSet FIRST — LegacyIcon safely handles
+        // undefined/missing types by rendering nothing (no crash).
+        // Only throw for null type when icon IS in the iconfont set
+        // (where we need a valid name to render the SVG).
+        if (!configService.remoteIconSet.has(props.type)) {
+          return <LegacyIcon {...props} />;
+        }
         if (!props.type) {
           throw new Error('Type is required');
         }
-        // Icon is in the iconfont set — use the custom SVG iconfont component
-        if (configService.remoteIconSet.has(props.type)) {
-          return <IconFontComponent {...props} type={props.type} />;
-        }
-        // Not in iconfont — fall back to antd's LegacyIcon.
-        // Extension icons (link, copy, qrcode, delete, etc.) are all valid
-        // antd icon names; LegacyIcon renders them correctly without warnings.
-        return <LegacyIcon {...props} />;
+        return <IconFontComponent {...props} type={props.type} />;
       }}
     </Observer>
   );
