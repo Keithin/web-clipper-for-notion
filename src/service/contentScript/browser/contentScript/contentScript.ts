@@ -15,6 +15,87 @@ import { getResourcePath } from '@/common/getResource';
 
 const turndownService = new TurndownService({ codeBlockStyle: 'fenced' });
 turndownService.use(plugins);
+
+// Extend lazy-load image support: many websites use custom attribute names
+// for lazy-loaded images (data-lazy-src, data-original, data-echo, etc.).
+// The base @web-clipper/turndown plugin only handles data-src and data-original-src.
+// This rule covers additional common patterns.
+const LAZY_ATTRS = [
+  'data-lazy-src',
+  'data-original',
+  'data-real-src',
+  'data-lazy',
+  'data-lazyload',
+  'data-echo',
+  'data-original-src',
+  'data-src',
+];
+turndownService.addRule('extendedLazyLoadImage', {
+  filter: ['img'],
+  replacement: function (_content: string, node: Node) {
+    const img = node as HTMLElement;
+    if (!(img instanceof HTMLElement)) return '';
+
+    // Check lazy-load attributes first (most common before src is set)
+    for (const attr of LAZY_ATTRS) {
+      const url = img.getAttribute(attr);
+      if (url) {
+        const resolved = resolveImageUrl(url);
+        if (resolved) return `![](${resolved})\n`;
+      }
+    }
+
+    // Check srcset (responsive images)
+    const srcset = img.getAttribute('srcset');
+    if (srcset) {
+      // Pick the largest resolution from srcset
+      const candidates = srcset.split(',').map(s => s.trim());
+      let bestUrl = '';
+      let bestWidth = 0;
+      for (const c of candidates) {
+        const parts = c.split(/\s+/);
+        const url = parts[0];
+        const descriptor = parts[1] || '';
+        const width = parseInt(descriptor.replace(/[^0-9]/g, ''), 10) || 0;
+        if (width >= bestWidth) {
+          bestUrl = url;
+          bestWidth = width;
+        }
+      }
+      // Fallback: if srcset parsed but no width info, use last URL
+      if (!bestUrl && candidates.length > 0) {
+        bestUrl = candidates[candidates.length - 1].split(/\s+/)[0];
+      }
+      if (bestUrl) {
+        const resolved = resolveImageUrl(bestUrl);
+        if (resolved) return `![](${resolved})\n`;
+      }
+    }
+
+    // Finally, check the actual src attribute
+    const src = img.getAttribute('src');
+    if (src) {
+      const resolved = resolveImageUrl(src);
+      if (resolved) return `![](${resolved})\n`;
+    }
+
+    return '';
+  },
+});
+
+/** Resolve relative image URLs to absolute */
+function resolveImageUrl(url: string): string | null {
+  if (!url) return null;
+  if (url.startsWith('//')) return window.location.protocol + url;
+  if (url.startsWith('/')) return window.location.origin + url;
+  if (url.startsWith('http://') || url.startsWith('https://')) return url;
+  // Relative path — resolve against current page URL
+  try {
+    return new URL(url, window.location.href).href;
+  } catch {
+    return null;
+  }
+}
 class ContentScriptService implements IContentScriptService {
   constructor(@Inject(IExtensionContainer) private extensionContainer: IExtensionContainer) {}
 
