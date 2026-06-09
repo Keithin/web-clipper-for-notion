@@ -1,7 +1,7 @@
 import { UserPreferenceStore } from '@/common/types';
 import { FormComponentProps } from '@ant-design/compatible/lib/form';
-import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import { omit, isEqual } from 'lodash';
+import React, { useState, useMemo, useCallback } from 'react';
+import { omit } from 'lodash';
 import { FormattedMessage } from 'react-intl';
 import { message } from 'antd';
 import { useFetch } from '@shihengtech/hooks';
@@ -10,14 +10,6 @@ type UseVerifiedAccountProps = FormComponentProps & {
   services: UserPreferenceStore['servicesMeta'];
   initAccount?: any;
 };
-
-function useDeepCompareMemoize<T>(value: T) {
-  const ref = React.useRef<T>();
-  if (!isEqual(value, ref.current)) {
-    ref.current = value;
-  }
-  return ref.current;
-}
 
 const useVerifiedAccount = ({ form, services, initAccount }: UseVerifiedAccountProps) => {
   const [type, _setType] = useState<string>(
@@ -98,25 +90,10 @@ const useVerifiedAccount = ({ form, services, initAccount }: UseVerifiedAccountP
     ) : null;
   }, [service.oauthUrl]);
 
-  const _formInfo = useMemo(() => {
-    const values = form.getFieldsValue();
-    const { defaultRepositoryId, type: curT, imageHosting, ...info } = values;
-    if (type !== curT) {
-      return null;
-    }
-    return info;
-  }, [form, type]);
-
-  const formInfo = useDeepCompareMemoize(_formInfo);
-  const verifiedRef = useRef(accountStatus.verified);
-  verifiedRef.current = accountStatus.verified;
-
-  useEffect(() => {
-    if (!verifiedRef.current || !formInfo) {
-      return;
-    }
-    run(formInfo);
-  }, [verifiedRef, formInfo, run, form]);
+  // Auto-reverify useEffect removed: user explicitly clicks "Verify",
+  // no need for automatic re-verification when form values change.
+  // The edit modal (editAccountModal.tsx) handles its own initial
+  // verification via a separate useEffect.
 
   return {
     type,
