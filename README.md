@@ -1,126 +1,116 @@
-# Notion Web Clipper
+<h1 align="center">Notion Web Clipper</h1>
 
-> A browser extension to clip any web page content into **Notion** with one click.
->
-> Forked from [webclipper/web-clipper](https://github.com/webclipper/web-clipper), stripped down to **Notion-only**, with a clean Notion API v1 integration using Integration Tokens.
+<p align="center">
+  <em>一键将网页内容剪藏到 Notion · Clip any web page into Notion with one click</em>
+</p>
 
----
-
-## Features
-
-- 🎯 **Clip any web page** — full page, selected text, bookmark, screenshot, or readability mode
-- 📝 **Convert HTML to Markdown** automatically using Turndown
-- 🧹 **Clean reading mode** powered by Mozilla Readability
-- 🏷️ **Choose target page or database** — create new sub-pages under any page or add items to any database
-- 🔗 **Markdown with inline formatting** — bold, italic, code, links preserved
-- 🌐 **Multiple capture modes**: full page, selection, screenshot, bookmark, readability
-- 🔐 **Secure token storage** — your Notion Integration Token stays in your browser
+<p align="center">
+  <a href="https://github.com/webclipper/web-clipper">Forked from webclipper/web-clipper</a>
+  ·
+  <strong>Notion-only</strong> 精简版 · Stripped down to pure Notion
+</p>
 
 ---
 
-## How It Works
+## 📖 简介 · About
 
-1. Create a Notion Integration at [https://www.notion.so/my-integrations](https://www.notion.so/my-integrations)
+**中文**
+
+Notion Web Clipper 是基于 [webclipper/web-clipper](https://github.com/webclipper/web-clipper) 的精简分支，移除了所有其他平台（Obsidian、FlowUs、语雀、OneNote、Joplin、Bear 等 17+ 平台），**仅保留 Notion**。使用 Notion API v1 + Integration Token 进行认证，干净、专注、开箱即用。
+
+**English**
+
+Notion Web Clipper is a focused fork of [webclipper/web-clipper](https://github.com/webclipper/web-clipper) that removes all 17+ other platforms (Obsidian, FlowUs, Yuque, OneNote, Joplin, Bear, etc.) and **keeps only Notion**. Authenticated via Notion API v1 with Integration Tokens — clean, focused, and ready to use.
+
+---
+
+## ✨ 功能特性 · Features
+
+| Feature | 中文 | English |
+|---------|------|---------|
+| 🎯 多模式剪藏 | 全页、选区、书签、截图、阅读模式 | Full page, selection, bookmark, screenshot, readability |
+| 📝 HTML → Markdown | 使用 Turndown 自动转换 | Automatic conversion via Turndown |
+| 🧹 纯净阅读模式 | 基于 Mozilla Readability | Powered by Mozilla Readability |
+| 🏷️ 选择目标页面/数据库 | 创建子页面或添加到数据库 | Create sub-pages under any page or add items to databases |
+| 🔗 格式保留 | 粗体、斜体、代码、链接 | Bold, italic, code, links preserved |
+| 🔐 安全存储 | Token 保存在浏览器本地 | Token stays in your browser |
+
+---
+
+## 🚀 快速开始 · Quick Start
+
+### 中文
+
+1. 在 [https://www.notion.so/my-integrations](https://www.notion.so/my-integrations) 创建 Integration
+2. 复制 **Internal Integration Token**（以 `secret_xxx` 开头）
+3. 在 Notion 中**分享**目标页面/数据库给 Integration
+4. 安装扩展 → 绑定账号 → 粘贴 Token → 验证
+5. 浏览任意网页，点击扩展图标即可剪藏
+
+### English
+
+1. Create an Integration at [https://www.notion.so/my-integrations](https://www.notion.so/my-integrations)
 2. Copy the **Internal Integration Token** (starts with `secret_xxx`)
-3. **Share** your Notion pages/databases with the integration (go to page → Share → Add your integration)
-4. Install the extension and add your token
-5. Browse any web page and click the extension icon to clip it
+3. **Share** your Notion pages/databases with the integration
+4. Install extension → Bind Account → Paste token → Verify
+5. Browse any web page and click the extension icon to clip
 
 ---
 
-## Install
+## 📦 安装 · Install
 
-### From Chrome Web Store (once published)
-
-...
-
-### From Source
-
-1. Download [notion-web-clipper-v1.0.0.zip](https://github.com/{YOUR_USERNAME}/notion-web-clipper/releases) from Releases
-2. Go to `chrome://extensions/`
-3. Enable **Developer mode** (top right)
-4. Drag & drop the zip file, or click **Load unpacked** and select the `dist/chrome` folder
-
-### Build from Source
+### 从源码安装 · From Source
 
 ```bash
 pnpm install
 pnpm run build
 ```
 
-The built extension will be in `dist/chrome/`.
+加载 `dist/chrome` 目录到 `chrome://extensions/`（开启开发者模式）
+
+Load the `dist/chrome` folder in `chrome://extensions/` with Developer mode enabled.
 
 ---
 
-## Setup: Notion Integration
-
-### Step 1 — Create an Integration
-
-1. Go to [https://www.notion.so/my-integrations](https://www.notion.so/my-integrations)
-2. Click **New integration**
-3. Name it (e.g., "Web Clipper")
-4. Under **Capabilities**, enable:
-   - ✅ Read content
-   - ✅ Update content
-   - ✅ Insert content
-5. Submit and copy the **Internal Integration Secret** (starts with `secret_xxx`)
-
-### Step 2 — Share Pages with the Integration
-
-For each Notion page or database you want to clip into:
-
-1. Open the page in Notion
-2. Click **Share** (top right)
-3. Add your integration by name
-4. Grant **Can edit** access
-
-### Step 3 — Add to Extension
-
-1. Click the extension icon → **Bind Account**
-2. Select **Notion** as the type
-3. Paste your token (`secret_xxx`)
-4. Click **Verify**
-5. Choose your default target page or database
-
----
-
-## Development
+## 🔧 开发 · Development
 
 ```bash
-git clone https://github.com/{YOUR_USERNAME}/notion-web-clipper.git
-cd notion-web-clipper
+git clone https://github.com/Keithin/web-clipper-for-notion.git
+cd web-clipper-for-notion
 pnpm install
 pnpm run dev
 ```
 
-- Load `dist/chrome` folder in Chrome extensions (Developer mode)
-- For Firefox, load from `dist/manifest.json`
-
-### Test
-
-```bash
-pnpm run test
-```
+| 命令 | 作用 |
+|------|------|
+| `pnpm run build` | 生产构建 |
+| `pnpm run dev` | 开发模式（热更新） |
+| `pnpm run test` | 运行测试 |
 
 ---
 
-## Architecture (Removed Platforms)
+## 🏗️ 项目架构 · Architecture
 
-This fork removes all other platforms (Obsidian, FlowUs, Yuque, OneNote, Joplin, Bear, etc.) and keeps only **Notion**. The original upstream at [webclipper/web-clipper](https://github.com/webclipper/web-clipper) supports 18+ platforms.
+移除了所有非 Notion 平台代码，保留核心剪藏引擎：
 
-### Notion Integration Details
+Removed all non-Notion platform code, retaining the core clipping engine.
 
-- **API**: Notion API v1 (`2022-06-28`)
-- **Auth**: Bearer token (Internal Integration Token)
-- **Endpoints used**:
-  - `POST /v1/search` — list accessible pages and databases
-  - `GET /v1/users/me` — verify token
-  - `POST /v1/pages` — create clipped pages
-- **Block types supported**: heading 1-3, paragraph, bullet list, numbered list, code block, blockquote, toggle, divider
-- **Inline formatting**: bold, italic, inline code, links
+### Notion API 集成详情 · Integration Details
+
+| 项目 | 详情 |
+|------|------|
+| API 版本 | v1 (`2022-06-28`) |
+| 认证方式 | Bearer Token (Internal Integration Token) |
+| 搜索接口 | `POST /v1/search` — 列出可访问的页面和数据库 |
+| 验证接口 | `GET /v1/users/me` — 验证 Token 有效性 |
+| 创建接口 | `POST /v1/pages` — 创建剪藏内容 |
+
+**支持的 Block 类型：** heading 1-3, paragraph, bullet list, numbered list, code block, blockquote, toggle, divider
+
+**行内格式：** bold, italic, inline code, links
 
 ---
 
-## License
+## 📄 协议 · License
 
-GPL-2.0-or-later — same as the original [webclipper/web-clipper](https://github.com/webclipper/web-clipper).
+[GPL-2.0-or-later](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html) — 与上游 [webclipper/web-clipper](https://github.com/webclipper/web-clipper) 保持一致
