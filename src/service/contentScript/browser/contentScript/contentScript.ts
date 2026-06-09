@@ -40,7 +40,7 @@ turndownService.addRule('extendedLazyLoadImage', {
     for (const attr of LAZY_ATTRS) {
       const url = img.getAttribute(attr);
       if (url) {
-        const resolved = resolveImageUrl(url);
+        const resolved = resolveUrl(url);
         if (resolved) return `![](${resolved})\n`;
       }
     }
@@ -67,7 +67,7 @@ turndownService.addRule('extendedLazyLoadImage', {
         bestUrl = candidates[candidates.length - 1].split(/\s+/)[0];
       }
       if (bestUrl) {
-        const resolved = resolveImageUrl(bestUrl);
+        const resolved = resolveUrl(bestUrl);
         if (resolved) return `![](${resolved})\n`;
       }
     }
@@ -75,7 +75,7 @@ turndownService.addRule('extendedLazyLoadImage', {
     // Finally, check the actual src attribute
     const src = img.getAttribute('src');
     if (src) {
-      const resolved = resolveImageUrl(src);
+      const resolved = resolveUrl(src);
       if (resolved) return `![](${resolved})\n`;
     }
 
@@ -83,8 +83,8 @@ turndownService.addRule('extendedLazyLoadImage', {
   },
 });
 
-/** Resolve relative image URLs to absolute */
-function resolveImageUrl(url: string): string | null {
+/** Resolve relative URLs to absolute */
+function resolveUrl(url: string): string | null {
   if (!url) return null;
   if (url.startsWith('//')) return window.location.protocol + url;
   if (url.startsWith('/')) return window.location.origin + url;
@@ -119,12 +119,14 @@ turndownService.addRule('stripJunkLinks', {
     const el = node as HTMLElement;
     if (!(el instanceof HTMLElement)) return content || '';
     const href = cleanAttr(el.getAttribute('href'));
+    // Resolve relative URLs to absolute (same as image handling)
+    const resolvedHref = resolveUrl(href);
     // If it's a junk link, return just the text content without markdown link syntax
-    if (stripLink(href)) return content || '';
+    if (stripLink(resolvedHref)) return content || '';
     // Keep valid links unchanged (preserve title attribute if present)
     const title = cleanAttr(el.getAttribute('title'));
-    if (title) return '[' + content + '](' + href + ' "' + title + '")';
-    return '[' + content + '](' + href + ')';
+    if (title) return '[' + content + '](' + resolvedHref + ' "' + title + '")';
+    return '[' + content + '](' + resolvedHref + ')';
   },
 });
 class ContentScriptService implements IContentScriptService {
