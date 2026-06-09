@@ -106,16 +106,23 @@ function stripLink(targetUrl: string): boolean {
   return false;
 }
 
+// Turndown's built-in cleanAttribute strips newlines from HTML attributes.
+// Without this, href values with embedded newlines produce markdown like
+// [text](url\nwith\nbreak) which the Notion parser can't handle.
+function cleanAttr(val: string | null): string {
+  return val ? val.replace(/\n+/g, '') : '';
+}
+
 turndownService.addRule('stripJunkLinks', {
   filter: ['a'],
   replacement: function (content: string, node: Node) {
     const el = node as HTMLElement;
     if (!(el instanceof HTMLElement)) return content || '';
-    const href = el.getAttribute('href') || '';
+    const href = cleanAttr(el.getAttribute('href'));
     // If it's a junk link, return just the text content without markdown link syntax
     if (stripLink(href)) return content || '';
     // Keep valid links unchanged (preserve title attribute if present)
-    const title = el.getAttribute('title');
+    const title = cleanAttr(el.getAttribute('title'));
     if (title) return '[' + content + '](' + href + ' "' + title + '")';
     return '[' + content + '](' + href + ')';
   },
