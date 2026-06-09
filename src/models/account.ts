@@ -49,7 +49,7 @@ model
     defaultAccountId,
   }));
 
-model.takeEvery(asyncAddAccount.started, function*(payload, { select, call }) {
+model.takeEvery(asyncAddAccount.started, function*(payload, { select, call, put }) {
   const selector = ({ account: { accounts } }: GlobalStore) => {
     return { accounts };
   };
@@ -75,6 +75,12 @@ model.takeEvery(asyncAddAccount.started, function*(payload, { select, call }) {
   }
   callback();
   yield call(syncStorageService.set, 'accounts', JSON.stringify(newAccounts));
+  // Switch to the newly added account so the clipper initializes its
+  // document service and loads repositories immediately — without
+  // requiring a full page refresh.
+  if (newAccounts.length === 1) {
+    yield put.resolve(asyncChangeAccount.started({ id: userPreference.id }));
+  }
 });
 
 model.takeEvery(asyncDeleteAccount.started, function*({ id }, { select, call }) {
