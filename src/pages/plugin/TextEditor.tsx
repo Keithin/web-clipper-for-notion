@@ -86,7 +86,7 @@ class ClipperPluginPage extends React.Component<PageProps, { markdown: string }>
         try {
           const that = this;
           setTimeout(() => {
-            that.myCodeMirror.setValue(data);
+            that.myCodeMirror.setValue(data || '');
             that.myCodeMirror.focus();
             that.myCodeMirror.setCursor(that.myCodeMirror.lineCount(), 0);
           }, 10);
@@ -105,7 +105,7 @@ class ClipperPluginPage extends React.Component<PageProps, { markdown: string }>
     if (this.myCodeMirror) {
       const value = this.myCodeMirror.getValue();
       if (data !== value) {
-        this.myCodeMirror.setValue(data);
+        this.myCodeMirror.setValue(data || '');
       }
     }
     this.myCodeMirror.on('change', (editor: any) => {
