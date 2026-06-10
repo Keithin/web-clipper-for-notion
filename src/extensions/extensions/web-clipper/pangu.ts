@@ -4,7 +4,7 @@ import { SelectAreaPosition } from '@web-clipper/area-selector';
 export default new ToolExtension<SelectAreaPosition>(
   {
     name: 'Pangu',
-    icon: 'pangu',
+    icon: 'tool',
     version: '0.0.2',
     automatic: true,
     apiVersion: '1.13.0',

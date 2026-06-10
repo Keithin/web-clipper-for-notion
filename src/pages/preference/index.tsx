@@ -12,6 +12,8 @@ import {
   ToolOutlined,
   UserOutlined,
   SettingOutlined,
+  SafetyOutlined,
+  HistoryOutlined,
 } from '@ant-design/icons';
 
 import { Tabs, Badge, message } from 'antd';
@@ -19,7 +21,6 @@ import { FormattedMessage } from 'react-intl';
 import Base from './base';
 import { DvaRouterProps, GlobalStore } from '@/common/types';
 import Changelog from './changelog';
-import IconFont from '@/components/IconFont';
 import Privacy from './privacy';
 import locale from '@/common/locales';
 import Container from 'typedi';
@@ -66,13 +67,13 @@ const tabs = [
   },
   {
     path: 'privacy',
-    icon: <IconFont type="privacy" />,
+    icon: <SafetyOutlined />,
     title: <FormattedMessage id="preference.tab.privacy" defaultMessage="Privacy policy" />,
     component: Privacy,
   },
   {
     path: 'changelog',
-    icon: <IconFont type="changelog" />,
+    icon: <HistoryOutlined />,
     title: <FormattedMessage id="preference.tab.changelog" defaultMessage="Changelog" />,
     component: Changelog,
   },
