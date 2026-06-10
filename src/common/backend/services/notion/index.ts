@@ -10,5 +10,9 @@ export default (): ServiceMeta => {
     homePage: 'https://www.notion.so/',
     service: Service,
     form: Form,
+    permission: {
+      origins: ['https://api.notion.com/*'],
+      permissions: [],
+    },
   };
 };

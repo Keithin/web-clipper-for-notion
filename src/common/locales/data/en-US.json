@@ -98,5 +98,6 @@
   "tool.title": "Title",
   "tool.title.required": "Title is Required",
   "tool.toolExtensions": "Tool Extension",
-  "backend.services.notion.form.token": "Notion Integration Token"
+  "backend.services.notion.form.token": "Notion Integration Token",
+  "backend.services.notion.form.tokenTip": "Go to {link} to create a token, then share your pages with the integration."
 }

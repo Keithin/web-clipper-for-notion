@@ -21,10 +21,15 @@ export default class NotionDocumentService implements DocumentService {
   private request: AxiosInstance;
   private repositories: (NotionPage | NotionDatabase)[];
   private token: string;
+  private id: string;
 
   constructor(info: { token: string }) {
     this.token = info?.token || '';
     this.repositories = [];
+    // Generate a stable ID from the first 12 chars of the token
+    // so the same integration always gets the same ID, and different
+    // tokens get different IDs (allowing multiple Notion accounts).
+    this.id = `notion_${this.token.slice(-12)}`;
 
     this.request = axios.create({
       baseURL: `${API_BASE}/v1/`,
@@ -107,7 +112,7 @@ export default class NotionDocumentService implements DocumentService {
   }
 
   getId = () => {
-    return 'notion';
+    return this.id;
   };
 
   getUserInfo = async () => {
@@ -198,6 +203,10 @@ export default class NotionDocumentService implements DocumentService {
         ? { database_id: repository.id }
         : { page_id: repository.id };
 
+    // Notion databases require properties matching their schema.
+    // Use the standard "Name" / "title" property — most databases have it.
+    // If the database renamed this column, the API returns a 400 which
+    // we propagate to the user so they can adjust.
     const pageBody: any = {
       parent,
       properties: {
@@ -218,15 +227,52 @@ export default class NotionDocumentService implements DocumentService {
     // but creating under a database does NOT — children are silently ignored.
     // So we always create the page first, then append blocks afterward.
     // Additionally, Notion limits each append to 100 blocks, so we batch.
+    // Rate limit: ~3 req/s ceiling, so we add delay + retry on 429/5xx.
     const response = await this.request.post<{ id: string; url: string }>('pages', pageBody);
     const pageId = response.data.id;
 
     if (children.length > 0) {
+      const APPEND_DELAY_MS = 350; // ~3 req/s ceiling
+      const MAX_RETRIES = 3;
+      let failedBatches = 0;
+
       for (let i = 0; i < children.length; i += MAX_BLOCKS_PER_REQUEST) {
         const batch = children.slice(i, i + MAX_BLOCKS_PER_REQUEST);
-        await this.request.patch(`blocks/${pageId}/children`, {
-          children: batch,
-        });
+        for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+          try {
+            await this.request.patch(`blocks/${pageId}/children`, {
+              children: batch,
+            });
+            break; // success, move to next batch
+          } catch (error: any) {
+            const isRateLimited = error?.response?.status === 429;
+            const isTransient = error?.response?.status >= 500 || error?.code === 'ECONNABORTED';
+            if (attempt < MAX_RETRIES && (isRateLimited || isTransient)) {
+              // Exponential backoff: 1s, 2s, 4s for rate limits; 500ms, 1s, 2s for others
+              const backoff = isRateLimited
+                ? Math.pow(2, attempt) * 1000
+                : attempt * 500;
+              await new Promise(r => setTimeout(r, backoff));
+              continue;
+            }
+            // Last attempt or non-retryable error — record and move on
+            failedBatches++;
+            console.warn(
+              `[Notion] Failed to append blocks batch ${Math.floor(i / MAX_BLOCKS_PER_REQUEST) + 1}/${Math.ceil(children.length / MAX_BLOCKS_PER_REQUEST)}: ${error?.message || error}`
+            );
+            break;
+          }
+        }
+        // Small delay between batches to stay under rate limit
+        if (i + MAX_BLOCKS_PER_REQUEST < children.length) {
+          await new Promise(r => setTimeout(r, APPEND_DELAY_MS));
+        }
+      }
+
+      if (failedBatches > 0) {
+        console.warn(
+          `[Notion] ${failedBatches} batch(es) failed to append. Page ${pageId} may have incomplete content.`
+        );
       }
     }
 
