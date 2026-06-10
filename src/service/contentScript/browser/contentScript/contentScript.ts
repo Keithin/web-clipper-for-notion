@@ -129,6 +129,59 @@ turndownService.addRule('stripJunkLinks', {
     return '[' + content + '](' + resolvedHref + ')';
   },
 });
+
+/**
+ * Extract a navigational URL from a non-<a> element by checking:
+ * 1. onclick / onmousedown handlers (location.href, window.open, window.location)
+ * 2. data-href, data-url, data-link attributes (common in SPA frameworks)
+ *
+ * This catches buttons, link cards, and styled clickable containers on sites
+ * like Zhihu that use div/button + onclick instead of <a href>.
+ */
+function extractClickUrl(el: HTMLElement): string | null {
+  // Check data attributes first (fast, no regex needed)
+  for (const attr of ['data-href', 'data-url', 'data-link', 'data-target-url']) {
+    const val = el.getAttribute(attr);
+    if (val && val.startsWith('http')) return val;
+    if (val && val.startsWith('/')) return resolveUrl(val);
+  }
+
+  // Check onclick handlers
+  const onclick = el.getAttribute('onclick') || el.getAttribute('onmousedown');
+  if (onclick) {
+    // Match: location.href='...', location.href = "...", window.open('...', ...)
+    const hrefMatch = onclick.match(/location\.href\s*=\s*['"]([^'"]+)['"]/);
+    if (hrefMatch) return resolveUrl(hrefMatch[1]);
+    const openMatch = onclick.match(/window\.open\s*\(\s*['"]([^'"]+)['"]/);
+    if (openMatch) return resolveUrl(openMatch[1]);
+    const assignMatch = onclick.match(/location\.assign\s*\(\s*['"]([^'"]+)['"]/);
+    if (assignMatch) return resolveUrl(assignMatch[1]);
+  }
+
+  return null;
+}
+
+/**
+ * Convert button/div/span elements with embedded navigational URLs to
+ * markdown links. Catches Zhihu link cards, SPA buttons, etc.
+ */
+turndownService.addRule('clickableLink', {
+  filter: ['button', 'div', 'span', 'li'],
+  replacement: function (content: string, node: Node) {
+    const el = node as HTMLElement;
+    if (!(el instanceof HTMLElement) || !content.trim()) return content || '';
+
+    // Skip elements that are clearly UI chrome / navigation structure
+    const tag = el.tagName.toLowerCase();
+    // Skip large structural containers (not clickable widgets)
+    if (el.querySelectorAll('a').length > 0) return content || '';
+
+    const url = extractClickUrl(el);
+    if (!url) return content || '';
+
+    return '[' + content.trim() + '](' + url + ')\n';
+  },
+});
 class ContentScriptService implements IContentScriptService {
   constructor(@Inject(IExtensionContainer) private extensionContainer: IExtensionContainer) {}
 
