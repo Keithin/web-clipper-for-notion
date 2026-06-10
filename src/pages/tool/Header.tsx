@@ -105,7 +105,11 @@ const ClipperHeader: React.FC<PageProps> = props => {
         disabled={loading || pathname === '/' || !currentRepository}
         block
       >
-        <FormattedMessage id="tool.save" defaultMessage="Save Content" />
+        {loading ? (
+          <FormattedMessage id="tool.saving" defaultMessage="Saving..." />
+        ) : (
+          <FormattedMessage id="tool.save" defaultMessage="Save Content" />
+        )}
       </Button>
     </Section>
   );

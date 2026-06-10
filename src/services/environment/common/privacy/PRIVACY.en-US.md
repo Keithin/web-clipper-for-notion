@@ -1,31 +1,25 @@
-# Privacy policy
+# Privacy Policy
 
-As users of many other internet services, we recognizes that privacy is extremely important. Further details of the Web Clipper's privacy policy are outlined below.
+Notion Web Clipper is a browser extension for clipping web page content into Notion.
 
-## Where is your Data Saved
+## Where Your Data Is Stored
 
-Servers of Web Clipper are located at Mongodb Cloud and zeit.co in the United States of America.
+All your data (Notion Integration Token, clipped content) is stored in **your browser's local storage** (chrome.storage) and on **Notion's servers**. This extension operates no backend servers.
 
 ## Data We Collect
 
-Web Clipper collects **email address** when you register for Web Clipper service or otherwise voluntarily provide such information. **We don't collect other personal information.**
-
-Web Clipper uses Github OAuth to register a Web Clipper account from your Github account. We don’t save password and other personal information to Web Clipper. So, no worry about password leak.
-
-Web Clipper uses cookies and other technologies to enhance your online experience and to learn about how you use the service in order to improve the quality of our services.
-
-## Use
-
-The log information is mainly used for usage analysis in Google Analytics, such as how many users access X feature etc.We don't collect and  analysis personal information. We may also use log information for auditing, research and analysis to operate and improve Web Clipper technologies and services. If information is used in any way other than indicated above, it will be in the aggregated form, and with all personal identifications removed. Web Clipper will not disclose information users store in the servers to any third party.
+This extension **collects no personal data**. It does not send your browsing history, clipped content, or any other information to third-party servers.
 
 ## Security
 
-Web Clipper takes precautions to insure that member account information is kept private. We use reasonable measures to protect member information that is stored within our database, and we restrict access to member information to those employees who need access to perform their job functions, such as our customer service personnel and technical staff. Please note that we cannot guarantee the security of member account information. Unauthorized entry or use, hardware or software failure, and other factors may compromise the security of member information at any time.
+- Your Notion Integration Token is stored only in your browser's local storage and is never uploaded to any third-party server
+- Clipped content is sent directly from your browser to the official Notion API
+- This extension contains no analytics tracking code (no Google Analytics, no third-party stats)
 
-### Changes To This Privacy Policy
+## Third-Party Services
 
-Changes to this Privacy Policy are effective when they are posted on this page. History of changes will be kept in this [repository](https://github.com/webclipper/web-clipper).
+This extension interacts with Notion through the official Notion API (api.notion.com). Please refer to Notion's privacy policy for how they handle your data.
 
-###
+## Contact
 
-Please contact us at **admin@diamonyuan.com** with any questions regarding our privacy policy.
+For privacy-related questions, please submit an [Issue](https://github.com/Keithin/web-clipper-for-notion/issues) on GitHub.

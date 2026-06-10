@@ -43,7 +43,7 @@ const model = new DvaModelBuilder(defaultState, 'clipper')
   })
   .takeEvery(watchActionChannel, function*(_, { put, take }) {
     while (true) {
-      //@ts-ignore
+// @ts-expect-error — redux-saga take returns Action type
       const action = yield take(actionChannel);
       yield put(action);
     }
@@ -74,7 +74,7 @@ const model = new DvaModelBuilder(defaultState, 'clipper')
     const documentService = documentServiceFactory(type, info);
     const permissionsService = Container.get(IPermissionsService);
     if (selectState.servicesMeta[type]?.permission) {
-      //@ts-ignore
+// @ts-expect-error — permissionsService.contains() type mismatch with saga call effect
       const hasPermissions = yield call(
         permissionsService.contains,
         selectState.servicesMeta[type]?.permission!

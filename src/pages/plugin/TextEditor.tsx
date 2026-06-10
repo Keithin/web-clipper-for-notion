@@ -31,8 +31,6 @@ type PageOwnProps = {
 };
 type PageProps = ReturnType<typeof mapStateToProps> & typeof useActions & PageOwnProps;
 
-const editorId = 'DiamondYuan_Love_LJ';
-
 class ClipperPluginPage extends React.Component<PageProps, { markdown: string }> {
   private myCodeMirror: any;
 
@@ -41,7 +39,10 @@ class ClipperPluginPage extends React.Component<PageProps, { markdown: string }>
     this.state = {
       markdown: '',
     };
+    this.editorId = `web-clipper-editor-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   }
+
+  private editorId: string;
 
   checkExtension = () => {
     const { extension, clipperData, pathname, search } = this.props;
@@ -97,7 +98,7 @@ class ClipperPluginPage extends React.Component<PageProps, { markdown: string }>
 
   componentDidMount = () => {
     const data = this.checkExtension();
-    let myTextarea = document.getElementById(editorId) as HTMLTextAreaElement;
+    let myTextarea = document.getElementById(this.editorId) as HTMLTextAreaElement;
     this.myCodeMirror = HyperMD.fromTextArea(myTextarea, {
       lineNumbers: false,
       hmdModeLoader: false,
@@ -125,7 +126,7 @@ class ClipperPluginPage extends React.Component<PageProps, { markdown: string }>
   render() {
     return (
       <EditorContainer>
-        <textarea id={editorId} />
+        <textarea id={this.editorId} />
       </EditorContainer>
     );
   }

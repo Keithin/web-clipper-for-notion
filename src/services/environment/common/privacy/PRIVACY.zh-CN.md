@@ -1,29 +1,25 @@
 # 隐私政策
 
-作为许多其他互联网服务的用户，我们认识到隐私非常重要。下面概述了 Web Clipper 隐私策略的更多详细信息。
+Notion Web Clipper 是一款浏览器扩展，用于将网页内容剪藏到 Notion。
 
-## 您的数据保存在哪里
+## 数据存储位置
 
-Web Clipper 的服务器位于美利坚合众国的 Mongodb Cloud 和 zeit.co。
+您的所有数据（Notion Integration Token、剪藏内容）均存储在 **您的浏览器本地**（chrome.storage）和 **Notion 的服务器**上。本扩展不运营任何后端服务器。
 
 ## 我们收集的数据
 
-当您注册 Web Clipper 服务或以其他方式自愿提供此类信息时，Web Clipper 只会收集“电子邮件地址”。 **我们不会收集其他个人信息。**
+本扩展 **不收集任何个人数据**。扩展不会将您的浏览记录、剪藏内容或任何其他信息发送到第三方服务器。
 
-Web Clipper 使用 Github OAuth 从您的 Github 帐户注册 Web Clipper 帐户。我们不会将密码和其他信息保存到 Web Clipper。因此，无需担心密码泄漏。
+## 数据安全
 
-Web Clipper 使用 cookie 和其他技术来增强您的在线体验，并了解您如何使用该服务，从而提高我们的服务质量。
+- 您的 Notion Integration Token 仅存储在浏览器本地，不会上传到任何第三方服务器
+- 剪藏内容直接从您的浏览器发送到 Notion 官方 API
+- 本扩展不包含任何分析跟踪代码（无 Google Analytics、无第三方统计）
 
-## 使用
+## 第三方服务
 
-日志信息主要用于 Google Analytics（分析）中的使用情况分析，例如有多少用户访问 X 功能等。我们不会收集和分析个人信息。我们还可能将日志信息用于审核，研究和分析，以操作和改进 Web Clipper 技术和服务。如果上述信息以外的任何其他方式使用信息，则该信息将采用汇总形式，并删除所有个人身份信息。 Web Clipper 不会将用户存储在服务器中的信息透露给任何第三方。
+本扩展通过 Notion 官方 API（api.notion.com）与 Notion 进行交互。请参阅 Notion 的隐私政策以了解他们如何处理您的数据。
 
-## 安全
+## 联系
 
-Web Clipper 采取了预防措施，以确保成员帐户信息保持私有。我们使用合理的措施来保护存储在数据库中的会员信息，并且将访问会员信息的权限限制为需要访问才能执行其工作职能的那些员工，例如我们的客户服务人员和技术人员。请注意，我们不能保证会员帐户信息的安全性。未经授权的输入或使用，硬件或软件故障以及其他因素可能随时损害成员信息的安全性。
-
-## 本隐私政策的变更
-
-在本页面上发布对本隐私政策的更改后，这些更改才生效。更改历史记录将保存在此 [存储库](https://github.com/webclipper/web-clipper) 中。
-
-如果对我们的隐私政策有任何疑问，请通过**admin@diamonyuan.com**与我们联系。
+如有隐私相关问题，请在 GitHub 提交 [Issue](https://github.com/Keithin/web-clipper-for-notion/issues)。

@@ -39,7 +39,7 @@ function LoadingHoc(uuidKey: string, fn: Function) {
     execCount = execCountCache;
     try {
       loadingMap.set(uuidKey, true);
-      //@ts-ignore
+// @ts-expect-error — loading state reducer type
       return await fn.apply(this, arguments);
     } catch (err) {
       throw err;

@@ -112,7 +112,7 @@ builder
   .takeEvery(asyncEditImageHosting.started, function*(payload, { call, put }) {
     const { id, value, closeModal } = payload;
     try {
-      //@ts-ignore
+// @ts-expect-error — storage.editImageHostingById return type is opaque to TS
       const imageHostingList = yield call(storage.editImageHostingById, id, {
         ...value,
         id,
@@ -197,7 +197,7 @@ builder
     }
 
     if (run) {
-      //@ts-ignore
+// @ts-expect-error — contentScriptService.runScript returns untyped Promise
       result = yield call(contentScriptService.runScript, id, 'run');
     }
     const state: GlobalStore = yield select(state => state);
@@ -239,7 +239,7 @@ builder
           pangu,
           config,
         };
-        //@ts-ignore
+// @ts-expect-error — afterRun callback context type variance
         result = yield call(afterRun, context);
       } catch (error) {
         message.error((error as Error).message);

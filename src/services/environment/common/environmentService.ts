@@ -2,13 +2,13 @@ import { ILocaleService } from '@/service/common/locale';
 import { Inject, Service } from 'typedi';
 import { IEnvironmentService } from './environment';
 
-//@ts-ignore
+// @ts-expect-error — raw-loader .md imports, TS can't resolve webpack aliases
 import ChangelogEnUS from './changelog/CHANGELOG.en-US.md';
-//@ts-ignore
+// @ts-expect-error — raw-loader .md imports
 import ChangelogZhCN from './changelog/CHANGELOG.zh-CN.md';
-//@ts-ignore
+// @ts-expect-error — raw-loader .md imports
 import PrivacyEnUS from './privacy/PRIVACY.en-US.md';
-//@ts-ignore
+// @ts-expect-error — raw-loader .md imports
 import PrivacyZhCN from './privacy/PRIVACY.zh-CN.md';
 
 const privacyLocale = {

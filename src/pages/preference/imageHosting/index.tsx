@@ -163,5 +163,5 @@ class Page extends React.Component<PageProps, PageState> {
 export default connect(
   mapStateToProps,
   mapDispatchToProps
-  //@ts-ignore
+// @ts-expect-error — formily schema field type
 )(Form.create<PageProps>()(Page));
