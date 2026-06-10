@@ -103,6 +103,9 @@ function resolveUrl(url: string): string | null {
 function stripLink(targetUrl: string): boolean {
   if (!targetUrl || targetUrl === '#') return true;
   if (/^javascript\s*:/i.test(targetUrl)) return true;
+  if (/^mailto:/i.test(targetUrl)) return false; // valid email links
+  if (targetUrl.startsWith('http://') || targetUrl.startsWith('https://')) return false;
+  if (targetUrl.startsWith('/')) return false; // relative URL
   return false;
 }
 
@@ -121,12 +124,27 @@ turndownService.addRule('stripJunkLinks', {
     const href = cleanAttr(el.getAttribute('href'));
     // Resolve relative URLs to absolute (same as image handling)
     const resolvedHref = resolveUrl(href);
-    // If it's a junk link, return just the text content without markdown link syntax
-    if (stripLink(resolvedHref)) return content || '';
+
+    // If the <a> tag has a JS/empty href but a data-href/data-url with
+    // the real URL, use that instead. Common on SPA sites where the
+    // actual destination is stored in a data attribute.
+    if (stripLink(resolvedHref)) {
+      const dataUrl =
+        el.getAttribute('data-href') ||
+        el.getAttribute('data-url') ||
+        el.getAttribute('data-link');
+      if (dataUrl) {
+        const resolvedDataUrl = resolveUrl(dataUrl);
+        if (resolvedDataUrl && !stripLink(resolvedDataUrl)) {
+          return '[' + content + '](' + resolvedDataUrl + ')\n';
+        }
+      }
+      return content || '';
+    }
     // Keep valid links unchanged (preserve title attribute if present)
     const title = cleanAttr(el.getAttribute('title'));
     if (title) return '[' + content + '](' + resolvedHref + ' "' + title + '")';
-    return '[' + content + '](' + resolvedHref + ')';
+    return '[' + content + '](' + resolvedHref + ')\n';
   },
 });
 
@@ -134,19 +152,53 @@ turndownService.addRule('stripJunkLinks', {
  * Extract a navigational URL from a non-<a> element by checking:
  * 1. onclick / onmousedown handlers (location.href, window.open, window.location)
  * 2. data-href, data-url, data-link attributes (common in SPA frameworks)
+ * 3. href attribute on non-<a> elements (some SPAs put href on div/button)
+ * 4. formaction on button elements (HTML5 form override)
+ * 5. aria role="link" elements (accessibility pattern)
  *
  * This catches buttons, link cards, and styled clickable containers on sites
  * like Zhihu that use div/button + onclick instead of <a href>.
  */
 function extractClickUrl(el: HTMLElement): string | null {
-  // Check data attributes first (fast, no regex needed)
-  for (const attr of ['data-href', 'data-url', 'data-link', 'data-target-url']) {
+  // 1. Check data attributes first (fast, no regex needed)
+  for (const attr of ['data-href', 'data-url', 'data-link', 'data-target-url', 'data-action']) {
     const val = el.getAttribute(attr);
     if (val && val.startsWith('http')) return val;
     if (val && val.startsWith('/')) return resolveUrl(val);
   }
 
-  // Check onclick handlers
+  // 2. Check href on non-<a> elements (React Router / Vue Router sometimes
+  //    renders href directly on div/button elements)
+  if (el.tagName !== 'A') {
+    const href = el.getAttribute('href');
+    if (href && !href.startsWith('#') && !href.startsWith('javascript:')) {
+      const resolved = resolveUrl(href);
+      if (resolved) return resolved;
+    }
+  }
+
+  // 3. Check formaction on button elements
+  if (el.tagName === 'BUTTON') {
+    const formaction = el.getAttribute('formaction');
+    if (formaction) {
+      const resolved = resolveUrl(formaction);
+      if (resolved) return resolved;
+    }
+  }
+
+  // 4. Check aria role="link" elements (accessibility pattern)
+  if (el.getAttribute('role') === 'link') {
+    // Some role="link" elements store URL in aria-label or data attributes
+    for (const attr of ['data-url', 'data-href', 'aria-label']) {
+      const val = el.getAttribute(attr);
+      if (val) {
+        const resolved = resolveUrl(val);
+        if (resolved) return resolved;
+      }
+    }
+  }
+
+  // 5. Check onclick handlers
   const onclick = el.getAttribute('onclick') || el.getAttribute('onmousedown');
   if (onclick) {
     // Match: location.href='...', location.href = "...", window.open('...', ...)
@@ -156,24 +208,24 @@ function extractClickUrl(el: HTMLElement): string | null {
     if (openMatch) return resolveUrl(openMatch[1]);
     const assignMatch = onclick.match(/location\.assign\s*\(\s*['"]([^'"]+)['"]/);
     if (assignMatch) return resolveUrl(assignMatch[1]);
+    const replaceMatch = onclick.match(/location\.replace\s*\(\s*['"]([^'"]+)['"]/);
+    if (replaceMatch) return resolveUrl(replaceMatch[1]);
   }
 
   return null;
 }
 
 /**
- * Convert button/div/span elements with embedded navigational URLs to
- * markdown links. Catches Zhihu link cards, SPA buttons, etc.
+ * Convert button/div/span/li elements with embedded navigational URLs to
+ * markdown links. Catches link cards, SPA buttons, ARIA links across all sites.
  */
 turndownService.addRule('clickableLink', {
-  filter: ['button', 'div', 'span', 'li'],
+  filter: ['button', 'div', 'span', 'li', 'section'],
   replacement: function (content: string, node: Node) {
     const el = node as HTMLElement;
     if (!(el instanceof HTMLElement) || !content.trim()) return content || '';
 
-    // Skip elements that are clearly UI chrome / navigation structure
-    const tag = el.tagName.toLowerCase();
-    // Skip large structural containers (not clickable widgets)
+    // Skip elements that already contain <a> children (links already handled)
     if (el.querySelectorAll('a').length > 0) return content || '';
 
     const url = extractClickUrl(el);
