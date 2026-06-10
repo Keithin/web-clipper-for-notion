@@ -28,8 +28,7 @@ const ClipperHeader: React.FC<PageProps> = props => {
     service,
     currentRepository,
   } = props;
-  const formValue = getFieldsValue() as ClipperHeaderForm;
-  const ref = useRef<ClipperHeaderForm>(formValue);
+  const formValueRef = useRef<ClipperHeaderForm>(getFieldsValue() as ClipperHeaderForm);
   const { loading, clipperHeaderForm } = useSelector((g: GlobalStore) => {
     return {
       loading: g.loading.effects[asyncCreateDocument.started.type],
@@ -38,20 +37,27 @@ const ClipperHeader: React.FC<PageProps> = props => {
   }, isEqual);
   const dispatch = useDispatch();
 
+  // Sync redux → form: when clipperHeaderForm changes externally, push to antd Form
   useEffect(() => {
-    if (isEqual(clipperHeaderForm, ref.current)) {
+    if (isEqual(clipperHeaderForm, formValueRef.current)) {
       return;
     }
     setFieldsValue(clipperHeaderForm);
-  }, [clipperHeaderForm, formValue, setFieldsValue]);
+    formValueRef.current = clipperHeaderForm;
+  }, [clipperHeaderForm, setFieldsValue]);
 
+  // Sync form → redux: when the user types, push to redux store
+  // Use ref for formValue to avoid re-render cycles — getFieldsValue
+  // returns a new object reference every time, which can't be used
+  // directly in useEffect deps without causing infinite loops.
   useEffect(() => {
-    if (isEqual(ref.current, formValue)) {
+    const currentFormValue = getFieldsValue() as ClipperHeaderForm;
+    if (isEqual(formValueRef.current, currentFormValue)) {
       return;
     }
-    dispatch(updateClipperHeader(formValue));
-    ref.current = formValue;
-  }, [dispatch, formValue]);
+    dispatch(updateClipperHeader(currentFormValue));
+    formValueRef.current = currentFormValue;
+  }, [dispatch, getFieldsValue]);
 
   const handleSubmit = () => {
     validateFields(err => {

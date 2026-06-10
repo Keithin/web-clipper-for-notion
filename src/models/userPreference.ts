@@ -271,7 +271,13 @@ builder.subscript(async function initStore({ dispatch, history }) {
   if (result.defaultPluginId) {
     dispatch(routerRedux.push(`/plugins/${result.defaultPluginId}`));
   }
-  const defaultAccountId = syncStorageService.get('defaultAccountId');
+  // syncStorageService.get() reads from an in-memory cache populated during
+  // init() which runs before any subscripts (see tool.main.chrome.ts).
+  // The call is safe here but the underlying storage operation is async.
+  const defaultAccountId: string | undefined = yield call(
+    [syncStorageService, syncStorageService.get],
+    'defaultAccountId'
+  );
   if (defaultAccountId) {
     dispatch(asyncChangeAccount.started({ id: defaultAccountId }));
   }

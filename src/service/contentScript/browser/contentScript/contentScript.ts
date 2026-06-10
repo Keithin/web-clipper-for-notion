@@ -129,6 +129,14 @@ turndownService.addRule('stripJunkLinks', {
     return '[' + content + '](' + resolvedHref + ')';
   },
 });
+/** Create a TurndownService with just the basic plugins (no extended rules).
+ *  Used for Readability mode where we want clean article extraction without
+ *  additional lazy-load or link processing. */
+function createReadabilityTurndown(): TurndownService {
+  const td = new TurndownService({ codeBlockStyle: 'fenced' });
+  td.use(plugins);
+  return td;
+}
 class ContentScriptService implements IContentScriptService {
   constructor(@Inject(IExtensionContainer) private extensionContainer: IExtensionContainer) {}
 
@@ -199,7 +207,7 @@ class ContentScriptService implements IContentScriptService {
   async runScript(id: string, lifeCycle: 'run' | 'destroy') {
     const extensions = this.extensionContainer.extensions;
     const extension = extensions.find((o) => o.id === id);
-    const lifeCycleFunc = extension?.extensionLifeCycle[lifeCycle];
+    const lifeCycleFunc = extension?.extensionLifeCycle?.[lifeCycle];
     if (!lifeCycleFunc) {
       return;
     }
@@ -207,9 +215,14 @@ class ContentScriptService implements IContentScriptService {
     const toggleClipper = () => {
       $(`.${styles.toolFrame}`).toggle();
     };
+    // Readability mode needs a clean TurndownService — the global one has
+    // extra rules (stripJunkLinks, extendedLazyLoadImage) that process
+    // navigation elements and lazy images, which interfere with the
+    // article-only extraction that Readability provides.
+    const isReadability = id === 'readability';
     const context: ContentScriptContext = {
       locale: localStorageService.get(LOCAL_USER_PREFERENCE_LOCALE_KEY, navigator.language),
-      turndown: turndownService,
+      turndown: isReadability ? createReadabilityTurndown() : turndownService,
       Highlighter: Highlighter,
       toggleClipper,
       Readability,
